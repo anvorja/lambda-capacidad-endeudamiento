@@ -1,0 +1,6 @@
+// Lint de Java para CI: cualquier advertencia del compilador (-Xlint:all) rompe la compilacion
+allprojects {
+    tasks.withType(JavaCompile).configureEach {
+        options.compilerArgs += ['-Xlint:all', '-Werror']
+    }
+}
