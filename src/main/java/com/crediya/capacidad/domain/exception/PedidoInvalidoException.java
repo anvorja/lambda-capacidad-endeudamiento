@@ -6,6 +6,8 @@ package com.crediya.capacidad.domain.exception;
  */
 public class PedidoInvalidoException extends RuntimeException {
 
+    private static final long serialVersionUID = 1L;
+
     public PedidoInvalidoException(String mensaje) {
         super(mensaje);
     }

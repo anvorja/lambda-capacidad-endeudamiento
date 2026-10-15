@@ -73,3 +73,16 @@ Runtime `java21`; memoria sugerida 512 MB; timeout 30 s (menor que el *visibilit
 `domain` (modelo, `EvaluadorDeCapacidad`, `Amortizacion`, puerto `PublicadorDeDecisiones`) -> `application` (casos de uso) ->
 `infrastructure` (JSON, SQS, handlers). El dominio no conoce AWS, Jackson ni logs: lo verifica ArchUnit en `ArquitecturaTest`.
 La formula de la cuota tambien existe en SOLICITUDES (`Amortizacion`, para el listado de HU4): si cambia una, cambia la otra.
+
+## CI/CD (GitHub Actions)
+
+`.github/workflows/ci.yml` corre en cada PR y en cada push a `develop` o `main`. Sus tres jobs se llaman exactamente como los exigen las
+rulesets de la rama (no los renombres sin actualizar la ruleset):
+
+| Job (check requerido) | Que valida |
+|-----------------------|------------|
+| **Lint** | `hadolint` sobre el Dockerfile y compilacion con `-Xlint:all -Werror` (`.github/ci/xlint.init.gradle`): ninguna advertencia del compilador |
+| **Calidad y build** | `./gradlew build`: pruebas unitarias, ArchUnit, pruebas contra LocalStack, 90% de cobertura en dominio y aplicacion y el jar de despliegue; publica los reportes |
+| **Imagen Docker** | Construye la etapa `artifact` del Dockerfile (el jar de despliegue con el JDK de produccion), comprueba que sea un zip valido y lo publica como artefacto del workflow para desplegarlo en Lambda |
+
+`develop` solo admite PR con *squash* y `main` solo con *merge*; ambas exigen los tres checks en verde.
