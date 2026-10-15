@@ -1,0 +1,90 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+    id 'com.gradleup.shadow' version '8.3.6'
+}
+
+group = 'com.crediya'
+version = '1.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation platform('software.amazon.awssdk:bom:2.56.0')
+    implementation platform('com.fasterxml.jackson:jackson-bom:2.22.3')
+
+    implementation 'com.amazonaws:aws-lambda-java-core:1.4.0'
+    implementation 'com.amazonaws:aws-lambda-java-events:3.16.1'
+    implementation('software.amazon.awssdk:sqs') {
+        // Se usa url-connection-client: Apache y Netty solo agregarian peso y tiempo de arranque en frio a la Lambda
+        exclude group: 'software.amazon.awssdk', module: 'apache-client'
+        exclude group: 'software.amazon.awssdk', module: 'apache5-client'
+        exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+    }
+    // Cliente HTTP liviano: arranca mas rapido en frio que Apache o Netty
+    implementation 'software.amazon.awssdk:url-connection-client'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    testImplementation platform('org.junit:junit-bom:5.12.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.17.0'
+    testImplementation 'org.assertj:assertj-core:3.27.3'
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.1'
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.21.3')
+    testImplementation 'org.testcontainers:localstack'
+    testImplementation 'org.testcontainers:junit-jupiter'
+}
+
+test {
+    useJUnitPlatform()
+    // Testcontainers 1.21.x usa por defecto la API 1.32 de Docker, que Docker Engine 29+ ya no acepta (minimo 1.40)
+    systemProperty 'api.version', providers.gradleProperty('dockerApiVersion').getOrElse('1.44')
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// Cobertura minima del 90% en la logica de negocio (dominio y aplicacion), como pide el enunciado
+jacocoTestCoverageVerification {
+    dependsOn test
+    classDirectories.setFrom(files(classDirectories.files.collect {
+        fileTree(dir: it, include: ['com/crediya/capacidad/domain/**', 'com/crediya/capacidad/application/**'])
+    }))
+    violationRules {
+        rule {
+            limit {
+                counter = 'LINE'
+                minimum = 0.90
+            }
+            limit {
+                counter = 'BRANCH'
+                minimum = 0.90
+            }
+        }
+    }
+}
+check.dependsOn jacocoTestCoverageVerification
+
+shadowJar {
+    archiveBaseName = 'lambda-capacidad-endeudamiento'
+    archiveClassifier = ''
+    archiveVersion = ''
+    // Los SDK de AWS registran implementaciones por ServiceLoader: hay que fusionar esos archivos
+    mergeServiceFiles()
+}
+tasks.build.dependsOn shadowJar
